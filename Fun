@@ -1,0 +1,190 @@
+
+import simplegui
+import random
+import math
+import time
+
+CANVAS_WIDTH = 950
+CANVAS_HEIGHT = 610
+CLEARANCE = 300
+global timer
+timer = 0
+REBOUND_VELOCITY = 7
+NUM_PLAT = 99999
+PLATFORM_SPACING = 100
+
+BOUNCE_SOUND = simplegui.load_sound("http://commondatastorage.googleapis.com/codeskulptor-assets/jump.ogg") 
+
+class Player:
+    global timer
+    def __init__(self, pos) :
+        self.pos = pos
+        self.vel = [0, 0]
+        
+    def nudge_horiz (self, bump):
+        self.vel[0] += bump
+        
+    def nudge_vertic (self, bump):
+        self.vel[1] -= bump
+        
+    def glide (self, bump):
+        self.vel[1] =bump
+        
+    def doublejump (self, jump):
+        self.vel[1] +=jump
+        
+    def update (self, state):
+        global timer
+        timer+1
+        self.pos[0] = (self.pos[0] + self.vel[0]) % CANVAS_WIDTH
+        plat_index = min(self.pos[1] // PLATFORM_SPACING, NUM_PLAT - 1)
+        plat_index = int(min(self.pos[1] // PLATFORM_SPACING, NUM_PLAT - 1))
+        if self.collide(state.platform_list[plat_index]):           
+            BOUNCE_SOUND.play()
+            self.vel[1] = max(-self.vel[1], REBOUND_VELOCITY)
+            if random.random()> .678: 	
+                state.platform_list[plat_index].remove()
+        else:
+            self.pos[1] += self.vel[1]
+            self.vel[1] -= .1
+            if self.pos[1] - state.camera_pos[1] > CANVAS_HEIGHT - CLEARANCE:
+                state.camera_pos[1] = self.pos[1] - (CANVAS_HEIGHT - CLEARANCE)
+            if self.pos[1] - state.camera_pos[1] < -50:
+                finish_time = time.time()
+                state.start_game()
+    def collide(self, platform):
+         if (self.pos[1] > platform.height > self.pos[1] + self.vel[1]) and platform.exists:
+            return platform.left < self.pos[0] < platform.right
+         else:
+            return False  
+                            
+    def draw_player(self, canvas, state):
+        canvas.draw_circle([self.pos[0] - state.camera_pos[0], 
+                            CANVAS_HEIGHT - (self.pos[1] - state.camera_pos[1])], 5, 2, "cyan")
+
+class platform:
+    def __init__(self, height):
+        width = random.randrange(100, 160)
+        self.left = random.randrange(25, CANVAS_WIDTH -(25 + width))
+        self.right = self.left + width
+        self.height = height
+        self.exists = True
+
+    def remove(self):
+        self.exists = False
+        
+    def restore(self):
+         self.exists = True
+        
+    def draw_platform(self, canvas, state):
+        draw_height = CANVAS_HEIGHT -(self.height- state.camera_pos[1])
+        if self.exists:
+            canvas.draw_line([self.left - state.camera_pos[0], draw_height],
+                             [self.right - state.camera_pos[0],draw_height], 4, "white")
+        canvas.draw_text(str(self.height), [CANVAS_WIDTH - 50 - state.camera_pos[0], draw_height], 12, "yellow")
+     
+    def stopwatch():
+        input 
+
+
+class Game:
+    def __init__(self):
+        self.frame = simplegui.create_frame("Jumper V3.2.3", CANVAS_WIDTH, CANVAS_HEIGHT)
+        self.frame.set_keydown_handler(self.keydown)
+        self.frame.set_keyup_handler(self.keyup)
+        self.frame.set_draw_handler(self.draw)
+        self.camera_pos = [0, 0]
+        self.platform_list = [platform(idx * PLATFORM_SPACING) for idx in range(0, NUM_PLAT)]
+        self.player = Player([(self.platform_list[0].left + self.platform_list[0].right) / 2, 200])
+        self.frame.start()
+
+    def start_game(self):
+         self.camera_pos = [0, 0]
+         self.platform_list = [platform(idx * PLATFORM_SPACING) for idx in range(0, NUM_PLAT)]
+         self.player = Player([(self.platform_list[0].left + self.platform_list[0].right) / 2, 200])
+         start_time = time.time()
+         
+    def keydown(self, key):
+        if key == simplegui.KEY_MAP["a"]:
+            self.player.nudge_horiz(-2.5)
+        elif key == simplegui.KEY_MAP["d"]:
+            self.player.nudge_horiz(2.5)
+        if key == simplegui.KEY_MAP["w"]:
+            self.player.nudge_vertic(1)
+        elif key == simplegui.KEY_MAP["e"]:
+            self.player.glide(0.15)
+
+    def keyup(self, key):
+        if key == simplegui.KEY_MAP["a"]:
+            self.player.nudge_horiz(2.5)
+        elif key == simplegui.KEY_MAP["d"]:
+            self.player.nudge_horiz(-2.5)
+        if key == simplegui.KEY_MAP["w"]:
+            self.player.nudge_vertic(1.25)
+        elif key == simplegui.KEY_MAP["e"]:
+            self.player.glide(0.15)
+        if key == simplegui.KEY_MAP["space"]:
+            self.player.doublejump(0.75)
+
+       
+    def draw(self, canvas):
+         self.player.update(self)
+         self.player.draw_player(canvas, self)
+         for plat_index in range(int(self.camera_pos[1] // PLATFORM_SPACING), 
+                           int((CANVAS_HEIGHT + self.camera_pos[1]) // PLATFORM_SPACING) + 1):
+            if plat_index < NUM_PLAT:
+                self.platform_list[plat_index].draw_platform(canvas, self)
+                
+class TimeCounter:
+ MAX_INTERVALS = 5
+
+ def __init__(self):
+  self.reset()
+
+ def __str__(self):
+  return str(self.intervals)
+
+ def record_time(self):
+  current_time = time.time()
+  if self.last_time > 0:
+   interval = current_time - self.last_time
+   if len(self.intervals) < TimeCounter.MAX_INTERVALS:
+    self.intervals.append(0)
+   self.intervals[self.index] = interval
+   self.index = (self.index + 1) % TimeCounter.MAX_INTERVALS
+  else:
+   self.initial_time = current_time
+  self.last_time = current_time
+  self.last_average_time = 0
+
+ def get_average_time(self):
+  if self.last_average_time != 0:
+   return self.last_average_time
+
+  total = 0
+  l = len(self.intervals)
+  if l > 0:
+   for interval in self.intervals:
+    total += interval
+   total /= l
+
+  self.last_average_time = total
+  return total
+
+ def get_current_time(self):
+  return self.last_time
+
+ def get_total_time(self):
+  return self.last_time - self.initial_time
+
+ def reset(self):
+  self.intervals = []
+  self.index = 0
+  self.last_time = 0
+  self.last_average_time = 0
+  self.initial_time = 0
+
+
+  self.time_counter = TimeCounter()
+             
+Game()
